@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Validation Test</title>
+</head>
+<body>
+  <h1>Validation Test</h1>
+  <form id="testForm">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" value="Jo">
+    <br>
+    <label for="age">Age:</label>
+    <input type="number" id="age" name="age" value="15">
+    <br>
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" value="test@example">
+    <br>
+    <button type="submit">Submit</button>
+  </form>
+
+  <script type="module">
+    import { Validator, extend, string } from '../../dist/index.js';
+
+    extend('strong_password', (value) => {
+      return /[A-Z]/.test(value) && /[0-9]/.test(value);
+    });
+    // Define validation rules using string syntax
+    const validator = new Validator({
+      name: 'required|string|min:3|max:255',
+      age: 'required|number|min:18',
+      email: 'required|string|email',
+      password: string().required().strong_password()
+    });
+
+    // Handle form submission
+    document.getElementById('testForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      // Get form data
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      // Validate the data
+      const result = validator.validate(data);
+
+      // Display validation results
+      if (!result.isValid) {
+        console.log("Validation Errors:", result.errors);
+        alert("Validation failed. Check the console for details.");
+      } else {
+        console.log("Data is valid:", result.data);
+        alert("Validation succeeded!");
+      }
+    });
+  </script>
+</body>
+</html>

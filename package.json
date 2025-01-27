@@ -1,0 +1,26 @@
+{
+  "name": "validlyjs",
+  "version": "1.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "validation",
+    "typescript",
+    "laravel",
+    "validation-rules"
+  ],
+  "author": "Adelabu Tobi",
+  "license": "ISC",
+  "description": "ValidlyJS is a lightweight, type-safe validation library inspired by Laravel's validation syntax",
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "tslib": "^2.8.1",
+    "typescript": "^5.7.3"
+  }
+}

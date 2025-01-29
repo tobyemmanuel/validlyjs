@@ -15,6 +15,11 @@ export class DateBuilder {
     return this;
   }
 
+  custom(ruleName: string, ...params: any[]): this {
+    this.rules.push({ name: ruleName, params: params.map(String) });
+    return this;
+  }
+
   build(): Rule[] {
     return [{ name: "date", params: [] }, ...this.rules];
   }

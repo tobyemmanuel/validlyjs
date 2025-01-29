@@ -11,8 +11,13 @@ export interface RuleHandler {
     ctx: ValidationContext
   ) => boolean | Promise<boolean>;
   message: (params: string[], ctx: ValidationContext) => string;
-  additionalRules?: Record<string, (...args: any[]) => RuleHandler>;
+  additionalRules?: Record<string, (...args: any[]) => AdditionalRule>;
 }
+
+export type AdditionalRule = {
+  validate: (value: any, params: string[], ctx: ValidationContext) => boolean | Promise<boolean>;
+  message: (params: string[], ctx: ValidationContext) => string;
+};
 
 export interface RuleBuilder {
   rules: Rule[];
@@ -23,7 +28,7 @@ export type RuleDefinition = string | string[] | RuleBuilder;
 export type SchemaDefinition<T = any> = Record<keyof T, RuleDefinition>;
 
 export type RuleWithAdditional = RuleHandler & {
-  additionalRules?: Record<string, (...args: any[]) => RuleHandler>;
+  additionalRules?: Record<string, (...args: any[]) => AdditionalRule>;
 };
 
 export interface ValidationResult<T> {
@@ -37,7 +42,7 @@ export interface ValidationContext {
   value?: any;
   field?: string;
   config: ValidationConfig;
-  formatMessage: (params: string[], defaultMessage: string) => string;
+  formatMessage: (params: Record<string, string>, defaultMessage: string) => string;
   schema?: SchemaDefinition;
 }
 

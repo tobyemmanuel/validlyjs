@@ -4,6 +4,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
@@ -11,16 +15,32 @@
   },
   "keywords": [
     "validation",
+    "javascript",
     "typescript",
     "laravel",
+    "client",
     "validation-rules"
   ],
   "author": "Adelabu Tobi",
-  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tobyemmanuel/validlyjs.git"
+  },
+  "license": "MIT",
   "description": "ValidlyJS is a lightweight, type-safe validation library inspired by Laravel's validation syntax",
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "vue": "^2.0.0 || ^3.0.0"
+  },
   "devDependencies": {
     "@types/node": "^22.10.10",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/vue": "^1.0.31",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tslib": "^2.8.1",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vue": "^3.5.13"
   }
 }

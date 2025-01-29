@@ -34,6 +34,11 @@ export class StringBuilder {
     return this;
   }
 
+  custom(ruleName: string, ...params: any[]): this {
+    this.rules.push({ name: 'custom', params: [ruleName, ...params.map(String)] });
+    return this;
+  }
+
   build(): Rule[] {
     return this.rules;
   }

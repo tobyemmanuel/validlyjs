@@ -3,14 +3,20 @@ import { StringBuilder } from "../builders/StringBuilder.js";
 export function parseFluentRules(builder: any): Rule[] {
   const rules: Rule[] = [];
 
-  if (builder instanceof StringBuilder) {
-    rules.push({ name: "string", params: [] });
-  }
   builder.rules.forEach((rule: any) => {
-    rules.push({
-      name: rule.name,
-      params: rule.params.map(String),
-    });
+    if (rule.name === "custom") {
+      rules.push({
+        name: "custom",
+        params: [rule.params[0]],
+        custom: true,
+      });
+    } else {
+      rules.push({
+        name: rule.name,
+        params: rule.params.map(String),
+        custom: false,
+      });
+    }
   });
   return rules;
 }

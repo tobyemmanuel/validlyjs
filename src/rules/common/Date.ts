@@ -1,59 +1,45 @@
 import { RuleHandler, ValidationContext } from "../../types/interfaces.js";
 
 export const dateRule: RuleHandler = {
-  validate: (value: any) =>
-    // validate: (value: any, params: string[], ctx: ValidationContext) =>
-    !isNaN(Date.parse(value)),
-  message: ([], ctx: ValidationContext) => {
-    // message: (params: string[], ctx: ValidationContext) => {
+  validate: (value: any, params: string[], ctx: ValidationContext) =>
+    !isNaN(Date.parse(params[0])),
+  message: (params: string[], ctx: ValidationContext) => {
     const message = ctx.config.messages?.date;
     return typeof message === "string"
-      ? message.replace(/:attribute/g, ctx.field || "field")
+      ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
       : `${ctx.field} must be a valid date`;
   },
 
   additionalRules: {
-    after: (date: string) => ({
-      validate: (value: any) =>
-        // validate: (value: any, params: string[], ctx: ValidationContext) =>
-        new Date(value) > new Date(date),
-      message: ([], ctx: ValidationContext) => {
-        // message: (params: string[], ctx: ValidationContext) => {
+    after: () => ({
+      validate: (value: any, params: string[], ctx: ValidationContext) =>
+        new Date(value) > new Date(params[0]),
+      message: (params: string[], ctx: ValidationContext) => {
         const message = ctx.config.messages?.after;
         return typeof message === "string"
-          ? message
-              .replace(/:attribute/g, ctx.field || "field")
-              .replace(/:date/g, date)
-          : `${ctx.field} must be after ${date}`;
-      }
+          ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
+          : `${ctx.field} must be after ${params[0]}`;
+      },
     }),
-    before: (date: string) => ({
-      validate: (value: any) =>
-        // validate: (value: any, params: string[], ctx: ValidationContext) =>
-        new Date(value) < new Date(date),
-      message: ([], ctx: ValidationContext) => {
-        // message: (params: string[], ctx: ValidationContext) => {
+    before: () => ({
+      validate: (value: any, params: string[], ctx: ValidationContext) =>
+        new Date(value) < new Date(params[0]),
+      message: (params: string[], ctx: ValidationContext) => {
         const message = ctx.config.messages?.before;
         return typeof message === "string"
-          ? message
-              .replace(/:attribute/g, ctx.field || "field")
-              .replace(/:date/g, date)
-          : `${ctx.field} must be before ${date}`;
-      }
+          ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
+          : `${ctx.field} must be before ${params[0]}`;
+      },
     }),
-    date_equals: (date: string) => ({
-      validate: (value: any) =>
-        // validate: (value: any, params: string[], ctx: ValidationContext) =>
-        new Date(value).toDateString() === new Date(date).toDateString(),
-      message: ([], ctx: ValidationContext) => {
-        // message: (params: string[], ctx: ValidationContext) => {
+    date_equals: () => ({
+      validate: (value: any, params: string[], ctx: ValidationContext) =>
+        new Date(value).toDateString() === new Date(params[0]).toDateString(),
+      message: (params: string[], ctx: ValidationContext) => {
         const message = ctx.config.messages?.date_equals;
         return typeof message === "string"
-          ? message
-              .replace(/:attribute/g, ctx.field || "field")
-              .replace(/:date/g, date)
-          : `${ctx.field} must be equal to ${date}`;
-      }
-    })
-  }
+          ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
+          : `${ctx.field} must be equal to ${params[0]}`;
+      },
+    }),
+  },
 };

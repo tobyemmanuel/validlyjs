@@ -4,34 +4,34 @@ import { SchemaDefinition } from "../../types/interfaces.js";
 
 export const objectRule: RuleHandler = {
   validate: (value: any) =>
-    // validate: (value: any, params: string[], ctx: ValidationContext) =>
     typeof value === "object" && !Array.isArray(value) && value !== null,
   message: ([], ctx: ValidationContext) => {
-    // message: (params: string[], ctx: ValidationContext) => {
     const message = ctx.config.messages?.object;
     return typeof message === "string"
-      ? message.replace(/:attribute/g, ctx.field || "field")
-      : `${ctx.field} must be an object`;
+    ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
+    : `${ctx.field} must be an object`;
   },
 
   additionalRules: {
     shape: (schema: SchemaDefinition) => ({
-      validate: (obj: object) => {
-        // validate: (obj: object, params: string[], ctx: ValidationContext) => {
+      validate: async (
+        obj: object,
+        params: string[],
+        ctx: ValidationContext
+      ) => {
         const validator = new Validator(schema);
-        return validator.validateAsync(obj).then((r) => r.isValid);
+        const result = await validator.validateAsync(obj);
+        return result.isValid;
       },
-      message: ([], ctx: ValidationContext) => {
-        // message: (params: string[], ctx: ValidationContext) => {
+      message: (params: string[], ctx: ValidationContext) => {
         const message = ctx.config.messages?.shape;
         return typeof message === "string"
-          ? message.replace(/:attribute/g, ctx.field || "field")
+          ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
           : `${ctx.field} has an invalid structure`;
-      }
+      },
     }),
     strict: () => ({
       validate: (obj: object, [], ctx: ValidationContext) => {
-        // validate: (obj: object, params: string[], ctx: ValidationContext) => {
         if (!ctx.schema) {
           throw new Error("Schema is required for strict validation");
         }
@@ -41,12 +41,11 @@ export const objectRule: RuleHandler = {
         return extraKeys.length === 0;
       },
       message: ([], ctx: ValidationContext) => {
-        // message: (params: string[], ctx: ValidationContext) => {
         const message = ctx.config.messages?.strict;
         return typeof message === "string"
-          ? message.replace(/:attribute/g, ctx.field || "field")
+          ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
           : `${ctx.field} contains unexpected fields`;
-      }
-    })
-  }
+      },
+    }),
+  },
 };

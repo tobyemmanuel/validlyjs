@@ -7,11 +7,26 @@ export { file } from "./builders/FileBuilder.js";
 export { boolean } from "./builders/BooleanBuilder.js";
 export { date } from "./builders/DateBuilder.js";
 export { object } from "./builders/ObjectBuilder.js";
-export { extend } from './rules/index.js';
+export { extend } from "./rules/index.js";
 
-// Framework integrations to work on later
-// export { useValidator } from "./resolvers/react/useValidator.js";
-// export { useValidator as useVueValidator } from './resolvers/vue/useValidator';
+let useValidator = null;
+let useVueValidator = null;
+
+try {
+  const react = await import("./resolvers/react/index.js");
+  useValidator = react.useValidator;
+} catch (e) {
+  // console.warn("React not installed. React integration disabled.");
+}
+
+try {
+  const vue = await import("./resolvers/vue/index.js");
+  useVueValidator = vue.useValidator;
+} catch (e) {
+  // console.warn("Vue not installed. Vue integration disabled.");
+}
+
+export { useValidator, useVueValidator };
 
 export type {
   ValidationResult,

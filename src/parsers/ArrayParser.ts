@@ -7,7 +7,12 @@ export function parseArrayRules(ruleDefinitions: any[]): Rule[] {
 
   for (const definition of ruleDefinitions) {
     if (typeof definition === "string") {
-      rules.push(...parseStringRules(definition));
+      const [ruleName, ...params] = definition.split(":");
+      rules.push({
+        name: ruleName,
+        params: params,
+        custom: ruleName === "custom",
+      });
     } else if (Array.isArray(definition)) {
       if (definition.length === 0) continue;
       const [name, ...params] = definition;

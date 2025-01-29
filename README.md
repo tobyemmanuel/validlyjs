@@ -168,14 +168,19 @@ configure({
 ### Custom Rules
 
 ```typescript
-import { extend } from 'validlyjs';
+import { Validator, string, extend } from 'validlyjs';
 
-extend('strong_password', (value) => {
-  return /[A-Z]/.test(value) && /[0-9]/.test(value);
-});
+extend(
+  "strong_password",
+  (value) => /[A-Z]/.test(value) && /[0-9]/.test(value),
+  "The :attribute must contain at least one uppercase letter and one number."
+);
 
 const validator = new Validator({
-  password: string().required().strong_password()
+  password: string().required().custom("strong_password")
+  // or any of the following
+  // password: "string|required|custom:strong_password",
+  // password: ["string", "required", "custom:strong_password"],
 });
 ```
 
@@ -186,7 +191,7 @@ const validator = new Validator({
 ### React Example
 
 ```javascript
-import { useValidator } from 'validlyjs';
+import { useValidator, string } from 'validlyjs';
 
 function MyForm() {
   const { validate, errors } = useValidator({
@@ -214,6 +219,44 @@ function MyForm() {
     </form>
   );
 }
+```
+
+```vue
+
+<template>
+  <form @submit.prevent="handleSubmit">
+    <input v-model="form.email" placeholder="Email" />
+    <span v-if="errors.email">{{ errors.email[0] }}</span>
+
+    <button type="submit">Submit</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useVueValidator, string } from 'validlyjs';
+
+const schema = {
+  email: string().required().email(),
+};
+
+const form = ref({
+  email: '',
+});
+
+const { validate, errors } = useValidator(schema, form.value);
+
+const handleSubmit = async () => {
+  const isValid = await validate(form.value);
+  if (isValid) {
+    // Submit the form
+    console.log('Form is valid!', form.value);
+  } else {
+    console.log('Form is invalid:', errors.value);
+  }
+};
+</script>
+
 ```
 
 ---

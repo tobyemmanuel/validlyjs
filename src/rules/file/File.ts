@@ -1,31 +1,38 @@
-import { RuleHandler } from "../../types/interfaces.js";
+import { RuleHandler, ValidationContext } from "../../types/interfaces.js";
+import { mimeTypes, parseFileSize } from "../../utils/file.js";
 
 export const fileRule: RuleHandler = {
   validate: (value: any) =>
     value instanceof File ||
     (typeof Blob !== "undefined" && value instanceof Blob),
-  message: () => "Must be a file",
+  message: (params: string[], ctx: ValidationContext) => {
+    const message = ctx.config.messages?.file;
+    return typeof message === "string"
+      ? ctx.formatMessage({ attribute: ctx.field || "field" }, message)
+      : ctx.formatMessage({ attribute: ctx.field || "field" }, "Must be a file");
+  },
 
   additionalRules: {
     maxSize: () => ({
-      // maxSize: (max: string) => ({
       validate: (file: File, params: string[]) => {
         const bytes = parseFileSize(params[0]);
         return file.size <= bytes;
       },
-      message: (params) => `File size must be less than ${params[0]}`
+      message: (params: string[], ctx: ValidationContext) => {
+        return ctx.formatMessage({ attribute: ctx.field || "field", size: params[0] }, "File size must be less than :size");
+      },
     }),
     mimes: () => ({
-      // mimes: (types: string) => ({
       validate: (file: File, params: string[]) =>
         params.some(ext => 
           file.type === mimeTypes[ext] || 
           file.name.toLowerCase().endsWith(`.${ext}`)
         ),
-      message: (params) => `Allowed file types: ${params.join(', ')}`
+      message: (params: string[], ctx: ValidationContext) => {
+        return ctx.formatMessage({ attribute: ctx.field || "field", types: params.join(', ') }, "Allowed file types: :types");
+      },
     }),
     dimensions: () => ({
-      // dimensions: (constraints: string) => ({
       validate: async (file: File, params: string[]) => {
         const [minWidth, minHeight, maxWidth, maxHeight] = params.map(Number);
         const img = await createImageBitmap(file);
@@ -34,24 +41,9 @@ export const fileRule: RuleHandler = {
                (!maxWidth || img.width <= maxWidth) &&
                (!maxHeight || img.height <= maxHeight);
       },
-      message: () => "Invalid image dimensions"
-    })
-  }
+      message: (params: string[], ctx: ValidationContext) => {
+        return ctx.formatMessage({ attribute: ctx.field || "field" }, "Invalid image dimensions");
+      },
+    }),
+  },
 };
-
-// Helper functions
-const mimeTypes: Record<string, string> = {
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  // Add more MIME types as needed
-};
-
-function parseFileSize(size: string): number {
-  const units: Record<string, number> = { 
-    KB: 1e3, 
-    MB: 1e6, 
-    GB: 1e9 
-  };
-  const match = size.match(/^(\d+)(KB|MB|GB)$/);
-  return match ? parseInt(match[1]) * units[match[2]] : 0;
-}

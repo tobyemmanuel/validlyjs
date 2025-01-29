@@ -11,7 +11,7 @@ export function parseStringRules(ruleString: string): Rule[] {
     rules.push({
       name,
       params: params ? params.split(",") : [],
-      custom: false,
+      custom: name === 'custom',
     });
   }
 

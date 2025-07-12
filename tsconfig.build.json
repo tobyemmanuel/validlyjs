@@ -1,0 +1,49 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "target": "ES2018",
+      "module": "ESNext",
+      "moduleResolution": "node",
+      "lib": ["ES2018", "DOM"],
+      "declaration": true,
+      "declarationMap": true,
+      "sourceMap": true,
+      "outDir": "./dist/temp_types",
+      "rootDir": "./src",
+      "removeComments": true,
+      "noEmit": false,
+      "emitDeclarationOnly": true,
+      "allowImportingTsExtensions": false,
+      /* Strict Type Checking for Production */
+      "strict": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "strictFunctionTypes": true,
+      "strictBindCallApply": true,
+      "strictPropertyInitialization": true,
+      "noImplicitThis": true,
+      "noImplicitReturns": true,
+      "noFallthroughCasesInSwitch": true,
+      "noUncheckedIndexedAccess": true,
+      
+      /* Module Resolution for Production */
+      "esModuleInterop": true,
+      "allowSyntheticDefaultImports": true,
+      "forceConsistentCasingInFileNames": true,
+      "skipLibCheck": true,
+      "importHelpers": true
+    },
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx"
+    ],
+    "exclude": [
+      "src/**/*.test.ts",
+      "src/**/*.spec.ts",
+      "src/**/__tests__/**/*",
+      "node_modules",
+      "dist",
+      "examples",
+      "benchmarks"
+    ]
+  }

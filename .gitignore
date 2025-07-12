@@ -1,2 +1,10 @@
+*.txt
 /node_modules
-/dist
+node_modules
+./node_modules
+.jest-cache
+coverage
+dist
+docs/node_modules
+docs/.docusaurus
+bundle-analysis.html

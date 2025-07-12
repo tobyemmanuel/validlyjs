@@ -1,28 +1,44 @@
-export async function getImageDimensions(
-  file: File
-): Promise<{ width: number; height: number }> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = () => {
-      resolve({ width: img.width, height: img.height });
-      URL.revokeObjectURL(img.src);
-    };
-  });
-}
+/**
+ * Parses a size string (e.g., "2MB", "500KB", "1024") into bytes.
+ * @param size - Size as a number (bytes) or string (e.g., "2MB", "500KB")
+ * @returns Number of bytes
+ * @throws Error if the size format is invalid
+ */
+export function parseSize(size: number | string): number {
+  if (typeof size === 'number') {
+    if (isNaN(size) || size < 0) {
+      throw new Error('Invalid size: must be a non-negative number');
+    }
+    return size;
+  }
 
-export const mimeTypes: Record<string, string> = {
-  jpg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-};
+  if (typeof size !== 'string') {
+    throw new Error('Invalid size: must be a number or string');
+  }
 
-export function parseFileSize(size: string): number {
+  const regex = /^(\d*\.?\d+)\s*(B|KB|MB|GB|TB)$/i;
+  const match = size.match(regex);
+
+  if (!match) {
+    throw new Error(`Invalid size format: ${size}`);
+  }
+
+  const value = parseFloat(match[1] as string);
+  const unit = (match[2] as string).toUpperCase();
+
   const units: Record<string, number> = {
-    KB: 1e3,
-    MB: 1e6,
-    GB: 1e9,
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024,
   };
-  const match = size.match(/^(\d+)(KB|MB|GB)$/);
-  return match ? parseInt(match[1]) * units[match[2]] : 0;
+
+  if (isNaN(value) || value < 0) {
+    throw new Error('Invalid size: value must be a non-negative number');
+  }
+
+  if (!units[unit]) throw new Error(`Invalid size unit: ${unit}`);
+
+  return value * (units[(unit as string)] as number);
 }

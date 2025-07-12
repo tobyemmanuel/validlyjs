@@ -1,239 +1,550 @@
 import {
-  Rule,
-  SchemaDefinition,
-  ValidationConfig,
-  ValidationContext,
+  ValidationSchema,
   ValidationResult,
-  AdditionalRule,
-  RuleHandler,
-} from "../types/interfaces.js";
-import { parseRules } from "../parsers/index.js";
-import { getRuleHandler } from "../rules/index.js";
-import { defaultConfig, setLocale, getConfig } from "../config.js";
-import { prepareValue } from "../utils/common.js";
-import { DATA_TYPES } from "../utils/typeCheck.js";
+  ValidatorOptions,
+  GlobalConfig,
+  CompiledRule,
+  ValidationContext,
+  RuleResult,
+  ValidationError,
+  AsyncValidationTask,
+  CustomRuleDefinition,
+  ParsedRule,
+  CoercionOptions,
+} from '../types';
+import { RuleEngine } from './rule-engine';
+import { FieldResolver } from './field-resolver';
+import { UnionValidator } from './union-validator';
+import { AsyncValidator } from './async-validator';
+import { ParserFactory } from '../parsers';
+import { MessageResolver } from '../messages/message-resolver';
+import { ResponseFormatter, ResponseFormatterFactory } from '../response';
+import { CompiledRuleCache, RuleCompiler } from './performance';
+import { RuleRegistry } from './rule-registry';
+import * as GlobalConfigModule from '../config';
+import { parseDateString, toBoolean } from '@/utils';
 
-export class Validator<T = any> {
-  private rules: Map<keyof T, Rule[]>;
-  private config: ValidationConfig;
+export class Validator {
+  private schema: ValidationSchema;
+  private options: ValidatorOptions;
+  private ruleEngine: RuleEngine;
+  private fieldResolver: FieldResolver;
+  private unionValidator: UnionValidator;
+  private asyncValidator: AsyncValidator;
+  private messageResolver: MessageResolver;
+  private responseFormatter: ResponseFormatter;
+  private cache: CompiledRuleCache;
+  private compiler: RuleCompiler;
+  private compiledRules: Map<string, CompiledRule[]> = new Map();
+  
+  // Performance optimizations - cached computed values
+  private readonly defaultOptions: ValidatorOptions;
+  private readonly coercionEnabled: boolean;
+  private readonly coercionConfig: CoercionOptions;
+  private readonly stopOnFirstError: boolean;
+  private readonly debugMode: boolean;
+  private readonly schemaKeys: string[];
+  private readonly wildcardPatterns: { pattern: string; regex: RegExp }[];
+  private readonly ruleNameToCoercionMap: Map<string, (value: any) => any>;
+  private readonly fieldPathToWildcardCache: Map<string, string | null> = new Map();
 
-  constructor(schema: SchemaDefinition<T>, config?: Partial<ValidationConfig>) {
-    this.rules = new Map();
-    this.config = { ...defaultConfig, schema, ...config };
+  constructor(schema: ValidationSchema, options: ValidatorOptions = {}) {
+    this.validateSchema(schema);
+    this.schema = schema;
+    this.defaultOptions = this.getDefaultOptions();
+    this.options = { ...this.defaultOptions, ...options };
+    
+    // Cache frequently accessed options
+    this.coercionEnabled = this.options.coercion?.enabled ?? true;
+    this.coercionConfig = this.options.coercion!;
+    this.stopOnFirstError = this.options.stopOnFirstError ?? false;
+    this.debugMode = this.options.debug ?? false;
+    this.schemaKeys = Object.keys(this.schema);
+    
+    // Pre-compile wildcard patterns for faster lookup
+    this.wildcardPatterns = this.schemaKeys
+      .filter(key => key.includes('*'))
+      .map(pattern => ({
+        pattern,
+        regex: this.createWildcardRegex(pattern)
+      }));
+    
+    // Create coercion function map for faster lookup
+    this.ruleNameToCoercionMap = new Map([
+      ['string', this.coercionConfig.strings ? (v: any) => v != null ? String(v) : v : null],
+      ['number', this.coercionConfig.numbers ? (v: any) => {
+        if (v == null) return v;
+        const num = Number(v);
+        return isNaN(num) ? v : num;
+      } : null],
+      ['boolean', this.coercionConfig.booleans ? (v: any) => v != null ? toBoolean(v) : v : null],
+      ['date', this.coercionConfig.dates ? (v: any) => {
+        if (v == null || typeof v !== 'string') return v;
+        const result = parseDateString(v);
+        return result ?? v;
+      } : null],
+    ].filter(([_, fn]) => fn !== null) as [string, (value: any) => any][]);
 
-    Object.entries(schema).forEach(([field, ruleDef]) => {
-      const rules = parseRules(ruleDef);
-      const dataTypeRules = rules.filter(
-        (rule) => DATA_TYPES.includes(rule.name) && !rule.custom
-      );
-
-      if (dataTypeRules.length > 1) {
-        throw new Error(
-          `Field "${field}" cannot have more than one data type rule (string, number, boolean, array, date, file or object).`
-        );
-      }
-      this.rules.set(field as keyof T, rules);
+    this.messageResolver = new MessageResolver(this.options);
+    this.ruleEngine = new RuleEngine();
+    this.fieldResolver = new FieldResolver();
+    this.unionValidator = new UnionValidator(this.ruleEngine, {
+      parallelValidation: this.options.performance?.parallelValidation ?? false,
+      stopOnFirstPass: true,
     });
-  }
+    this.asyncValidator = new AsyncValidator(this.messageResolver);
+    this.responseFormatter = ResponseFormatterFactory.getFormatter(
+      this.options.responseType || 'laravel'
+    );
+    this.cache = new CompiledRuleCache();
+    this.compiler = new RuleCompiler(this.ruleEngine);
 
-  setLocale(locale: string): this {
-    setLocale(locale);
-    this.config = { ...this.config, ...getConfig() };
-    return this;
-  }
-
-  private updateCleanData(field: string, value: any, cleanData: any) {
-    const parts = field.split(".");
-    let target = cleanData;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const key = parts[i];
-      if (!target[key]) {
-        if (!isNaN(Number(parts[i + 1]))) {
-          target[key] = [];
-        } else {
-          target[key] = {};
-        }
-      }
-      target = target[key];
+    if (this.options.performance?.compileRules) {
+      this.compileSchema();
     }
-    target[parts[parts.length - 1]] = value;
   }
 
-  private async validateField(
-    field: string,
-    rules: Rule[],
-    data: Record<string, any>,
-    cleanData: Partial<T>,
-    errors: Map<keyof T, string[]>,
-    isAsync = false
-  ) {
-    const parts = field.split(".");
-    let currentObj = data;
-    let value: any = null;
-    let isValid = true;
+  private validateSchema(schema: ValidationSchema): void {
+    if (!schema || typeof schema !== 'object') {
+      throw new Error('Invalid schema: must be a non-empty object');
+    }
+    for (const [field, rule] of Object.entries(schema)) {
+      if (!field || typeof rule === 'undefined') {
+        throw new Error(`Invalid schema entry for field "${field}"`);
+      }
+    }
+  }
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (currentObj === undefined || currentObj === null) {
-        isValid = false;
+  private coerceValue(value: any, rules: CompiledRule[]): any {
+    if (!this.coercionEnabled) return value;
+
+    // Fast path - use pre-built coercion functions
+    for (const rule of rules) {
+      const coercionFn = this.ruleNameToCoercionMap.get(rule.name);
+      if (coercionFn) {
+        return coercionFn(value);
+      }
+    }
+    return value;
+  }
+
+  validateSync(data: Record<string, any>): ValidationResult {
+    const errors: ValidationError[] = [];
+    const resolvedFields = this.fieldResolver.resolveFields(this.schema, data);
+
+    for (const [fieldPath, value] of resolvedFields) {
+      const rules = this.getCompiledRules(fieldPath);
+      const coercedValue = this.coerceValue(value, rules);
+      
+      const context: ValidationContext = {
+        field: fieldPath,
+        data,
+        parameters: [],
+      };
+
+      // Only add optional properties if they have values
+      const parentPath = this.fieldResolver.getParentPath(fieldPath);
+      if (parentPath !== undefined) {
+        context.parentPath = parentPath;
+      }
+
+      const arrayIndex = this.fieldResolver.getArrayIndex(fieldPath);
+      if (arrayIndex !== undefined) {
+        context.index = arrayIndex;
+      }
+
+      const fieldErrors = this.validateField(coercedValue, rules, context);
+      errors.push(...fieldErrors);
+
+      if (this.stopOnFirstError && errors.length > 0) {
         break;
       }
-      if (i === parts.length - 1) {
-        value = currentObj[part];
-      } else {
-        currentObj = currentObj[part];
-      }
     }
 
-    if (!isValid) {
-      errors.set(field as keyof T, ["The specified path does not exist"]);
-      return;
-    }
-
-    const isNullable = rules.some((rule) => rule.name === "nullable");
-    const isRequired = rules.some((rule) => rule.name === "required");
-
-    if (isNullable && (value === null || value === undefined)) {
-      this.updateCleanData(field, value, cleanData);
-      return;
-    }
-
-    if (isRequired && (value === null || value === undefined || value === "")) {
-      const handler = getRuleHandler("required");
-      const message = handler.message([], {
-        value,
-        data,
-        field,
-        config: this.config,
-        schema: this.config.schema,
-        formatMessage: this.formatMessage.bind(this),
-      });
-      errors.set(field as keyof T, [message]);
-      return;
-    }
-
-    const preparedValue = prepareValue(value, this.config);
-    const context: ValidationContext = {
-      value: preparedValue,
+    return {
+      isValid: errors.length === 0,
+      errors: this.responseFormatter.format(errors, data),
       data,
-      field,
-      config: this.config,
-      schema: this.config.schema,
-      formatMessage: this.formatMessage.bind(this),
     };
+  }
 
-    const dataType = rules.find((rule) => DATA_TYPES.includes(rule.name))?.name;
+  async validate(data: Record<string, any>): Promise<ValidationResult> {
+    const errors: ValidationError[] = [];
+    const resolvedFields = this.fieldResolver.resolveFields(this.schema, data);
+    const asyncTasks: AsyncValidationTask[] = [];
 
-    for (const rule of rules) {
-      if (rule.name === "nullable") continue;
+    for (const [fieldPath, value] of resolvedFields) {
+      const rules = this.getCompiledRules(fieldPath);
+      const coercedValue = this.coerceValue(value, rules);
+
+      const context: ValidationContext = {
+        field: fieldPath,
+        data,
+        parameters: [],
+      };
+
+      // Only add optional properties if they have values
+      const parentPath = this.fieldResolver.getParentPath(fieldPath);
+      if (parentPath !== undefined) {
+        context.parentPath = parentPath;
+      }
+
+      const arrayIndex = this.fieldResolver.getArrayIndex(fieldPath);
+      if (arrayIndex !== undefined) {
+        context.index = arrayIndex;
+      }
+
+      const { syncErrors, asyncTasks: fieldAsyncTasks } =
+        this.validateFieldWithAsync(coercedValue, rules, context);
+      errors.push(...syncErrors);
+      asyncTasks.push(...fieldAsyncTasks);
+      
+      if (this.stopOnFirstError && errors.length > 0) {
+        break;
+      }
+    }
+
+    if (
+      asyncTasks.length > 0 &&
+      (!this.stopOnFirstError || errors.length === 0)
+    ) {
+      const asyncErrors = await this.asyncValidator.validateTasks(asyncTasks);
+      errors.push(...asyncErrors);
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors: this.responseFormatter.format(errors, data),
+      data,
+    };
+  }
+
+  private validateField(
+    value: any,
+    rules: CompiledRule[],
+    context: ValidationContext
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    let shouldSkipRemaining = false;
+
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i] as CompiledRule;
+      if (rule.async) continue;
+      if (shouldSkipRemaining) break;
+
       try {
-        const handler = getRuleHandler(rule.name, dataType);
-        let validationResult;
-        if (isAsync) {
-          validationResult = await handler.validate(
-            preparedValue,
-            rule.params,
-            context
-          );
-        } else {
-          validationResult = handler.validate(
-            preparedValue,
-            rule.params,
-            context
+        const ruleContext = { ...context, parameters: rule.parameters || [] };
+        const result = rule.validator(value, ruleContext) as RuleResult;
+
+        if (result.skip) {
+          shouldSkipRemaining = true;
+          continue;
+        }
+
+        if (!result.passed) {
+          const message = result.message || this.messageResolver.resolve({
+            ...ruleContext,
+            rule: rule.name,
+            value,
+          });
+          errors.push({
+            field: context.field,
+            rule: rule.name,
+            message,
+            value,
+            parameters: rule.parameters || [],
+          });
+
+          if (this.stopOnFirstError) {
+            break;
+          }
+        }
+      } catch (error) {
+        if (this.debugMode) {
+          console.error(
+            `Rule "${rule.name}" failed for field "${context.field}":`,
+            error
           );
         }
-        if (!validationResult) {
-          const message = handler.message(rule.params, context);
-          const fieldErrors = errors.get(field as keyof T) || [];
-          fieldErrors.push(message);
-          errors.set(field as keyof T, fieldErrors);
-          if (this.config.bail) break;
-        }
-      } catch (error: any) {
-        console.error(
-          `Validation error for rule ${rule.name} on field ${field}: `,
-          error.message
-        );
+        errors.push({
+          field: context.field,
+          rule: rule.name,
+          message: `Validation rule "${rule.name}" threw an error`,
+          value,
+          parameters: [],
+        });
       }
     }
 
-    if (value !== undefined) {
-      this.updateCleanData(field, value, cleanData);
-    }
+    return errors;
   }
 
-  validate(data: Record<string, any>): ValidationResult<T> {
-    const errors = new Map<keyof T, string[]>();
-    const cleanData: Partial<T> = {};
+  private validateFieldWithAsync(
+    value: any,
+    rules: CompiledRule[],
+    context: ValidationContext
+  ): { syncErrors: ValidationError[]; asyncTasks: AsyncValidationTask[] } {
+    const syncErrors: ValidationError[] = [];
+    const asyncTasks: AsyncValidationTask[] = [];
+    let shouldSkipRemaining = false;
 
-    for (const [field, rules] of this.rules.entries()) {
-      this.validateField(
-        field as string,
-        rules,
-        data,
-        cleanData,
-        errors,
-        false
-      );
-    }
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i] as CompiledRule;
+      if (shouldSkipRemaining) break;
 
-    return {
-      isValid: errors.size === 0,
-      data: cleanData as T,
-      errors: Object.fromEntries(errors) as Partial<Record<keyof T, string[]>>,
-    };
-  }
+      const ruleContext = { ...context, parameters: rule.parameters || [] };
+      
+      if (rule.async) {
+        const validator = rule.validator as (
+          value: any,
+          context: ValidationContext
+        ) => Promise<RuleResult>;
+        
+        asyncTasks.push({
+          field: context.field,
+          rule: rule.name,
+          value,
+          parameters: rule.parameters || [],
+          validator: validator,
+          context: ruleContext,
+          ruleName: rule.name,
+          execute: () => validator(value, ruleContext),
+        });
+      } else {
+        try {
+          const result = rule.validator(value, ruleContext) as RuleResult;
+          
+          if (result.skip) {
+            shouldSkipRemaining = true;
+            continue;
+          }
 
-  async validateAsync(data: Record<string, any>): Promise<ValidationResult<T>> {
-    const errors = new Map<keyof T, string[]>();
-    const cleanData: Partial<T> = {};
+          if (!result.passed) {
+            const message = result.message || this.messageResolver.resolve({
+              ...ruleContext,
+              rule: rule.name,
+              value,
+            });
+            
+            syncErrors.push({
+              field: context.field,
+              rule: rule.name,
+              message,
+              value,
+              parameters: rule.parameters || [],
+            });
 
-    for (const [field, rules] of this.rules.entries()) {
-      await this.validateField(
-        field as string,
-        rules,
-        data,
-        cleanData,
-        errors,
-        true
-      );
-    }
-
-    return {
-      isValid: errors.size === 0,
-      data: cleanData as T,
-      errors: Object.fromEntries(errors) as Partial<Record<keyof T, string[]>>,
-    };
-  }
-
-  private formatMessage(
-    params: Record<string, string>,
-    defaultMessage: string | Record<string, string>
-  ): string {
-    if (typeof defaultMessage === "string") {
-      return this.replaceMessageParams(defaultMessage, params);
-    }
-    if (typeof defaultMessage === "object") {
-      const [ruleName, subKey] = Object.keys(params)[0].split(".");
-      if (ruleName && subKey && defaultMessage[ruleName]) {
-        const message = defaultMessage[ruleName];
-        if (typeof message === "string") {
-          return this.replaceMessageParams(message, params);
-        }
-        if (typeof message === "object" && message[subKey]) {
-          return this.replaceMessageParams(message[subKey], params);
+            if (this.stopOnFirstError) {
+              break;
+            }
+          }
+        } catch (error) {
+          if (this.debugMode) {
+            console.error(
+              `Rule "${rule.name}" failed for field "${context.field}":`,
+              error
+            );
+          }
+          syncErrors.push({
+            field: context.field,
+            rule: rule.name,
+            message: `Validation rule "${rule.name}" threw an error`,
+            value,
+            parameters: [],
+          });
         }
       }
     }
-    return "Validation error";
+
+    return { syncErrors, asyncTasks };
   }
 
-  private replaceMessageParams(
-    message: string,
-    params: Record<string, string>
-  ): string {
-    return message.replace(/:(\w+)/g, (_, key) => params[key] || "");
+  private getCompiledRules(fieldPath: string): CompiledRule[] {
+    // Fast path - check compiled rules cache first
+    const cachedRules = this.compiledRules.get(fieldPath);
+    if (cachedRules) {
+      return cachedRules;
+    }
+
+    // Check for exact match first
+    let ruleDefinition = this.schema[fieldPath];
+    let schemaKey = fieldPath;
+
+    // If no exact match, try wildcard pattern
+    if (!ruleDefinition) {
+      schemaKey = this.findWildcardPattern(fieldPath) || fieldPath;
+      ruleDefinition = schemaKey ? this.schema[schemaKey] : [];
+    }
+
+    if (!ruleDefinition) {
+      return [];
+    }
+
+    const cacheKey = this.cache.generateKey(ruleDefinition);
+    const cachedCompiledRules = this.cache.get(cacheKey);
+    if (cachedCompiledRules) {
+      this.compiledRules.set(fieldPath, cachedCompiledRules);
+      return cachedCompiledRules;
+    }
+
+    const parser = ParserFactory.getParser(ruleDefinition);
+    const parsedResult = parser.parse(ruleDefinition);
+
+    let parsedRules: ParsedRule[];
+
+    // Check if we have a union structure
+    const hasUnionStructure = Array.isArray(parsedResult) &&
+      parsedResult.some(rule => 
+        Array.isArray(rule) || 
+        (rule && typeof rule === 'object' && Array.isArray(rule.parameters?.[0]))
+      );
+
+    if (hasUnionStructure) {
+      const modifierRules: ParsedRule[] = [];
+      let unionRuleSets: ParsedRule[][] = [];
+
+      for (const item of parsedResult) {
+        if (Array.isArray(item)) {
+          unionRuleSets.push(item);
+        } else if (item && typeof item === 'object') {
+          if (item.name === 'union' && Array.isArray(item.parameters?.[0])) {
+            unionRuleSets = item.parameters[0];
+          } else {
+            modifierRules.push(item);
+          }
+        }
+      }
+
+      const unionRule: ParsedRule = {
+        name: 'union',
+        parameters: [unionRuleSets, true],
+        modifiers: [],
+        dataType: 'union' as any,
+        async: true,
+      };
+
+      parsedRules = [...modifierRules, unionRule];
+    } else {
+      parsedRules = parsedResult as ParsedRule[];
+    }
+
+    const compiledRules = this.compiler.compile(parsedRules);
+    this.cache.set(cacheKey, compiledRules);
+    this.compiledRules.set(fieldPath, compiledRules);
+    return compiledRules;
+  }
+
+  private createWildcardRegex(pattern: string): RegExp {
+    let regexPattern = pattern;
+    regexPattern = regexPattern.replace(/[+?^${}()|[\]\\]/g, '\\$&');
+    regexPattern = regexPattern.replace(/\.\*/g, '\\[\\d+\\]');
+    regexPattern = regexPattern.replace(/\./g, '\\.');
+    return new RegExp(`^${regexPattern}$`);
+  }
+
+  private findWildcardPattern(fieldPath: string): string | null {
+    // Check cache first
+    const cached = this.fieldPathToWildcardCache.get(fieldPath);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    // Use pre-compiled regex patterns for faster matching
+    for (const { pattern, regex } of this.wildcardPatterns) {
+      if (regex.test(fieldPath)) {
+        this.fieldPathToWildcardCache.set(fieldPath, pattern);
+        return pattern;
+      }
+    }
+
+    this.fieldPathToWildcardCache.set(fieldPath, null);
+    return null;
+  }
+
+  private compileSchema(): void {
+    for (const fieldPath of this.schemaKeys) {
+      this.getCompiledRules(fieldPath);
+    }
+  }
+
+  private getDefaultOptions(): ValidatorOptions {
+    return {
+      responseType: 'laravel',
+      language: 'en',
+      messages: {},
+      fieldMessages: {},
+      stopOnFirstError: false,
+      coercion: {
+        enabled: true,
+        strings: true,
+        numbers: true,
+        booleans: false,
+        dates: true,
+      },
+      performance: {
+        cacheRules: true,
+        optimizeUnions: true,
+        parallelValidation: true,
+        compileRules: true,
+      },
+    };
+  }
+
+  extend(name: string, rule: CustomRuleDefinition): void {
+    this.ruleEngine.registerCustomRule({ name, ...rule });
+    this.clearCompiledRulesCaches();
+  }
+
+  refresh(): void {
+    this.clearCompiledRulesCaches();
+  }
+
+  private clearCompiledRulesCaches(): void {
+    this.compiledRules.clear();
+    this.cache.clear();
+    this.fieldPathToWildcardCache.clear();
+  }
+
+  // private clearCachesForCustomRule(ruleName: string): void {
+  //   for (const [fieldPath, rules] of this.compiledRules.entries()) {
+  //     if (rules.some(rule => rule.name === ruleName)) {
+  //       this.compiledRules.delete(fieldPath);
+  //     }
+  //   }
+  //   this.cache.clear();
+  // }
+
+  setLanguage(language: string): void {
+    this.options.language = language;
+    this.messageResolver.setLanguage(language);
+  }
+
+  createLanguage(code: string, messages: any): void {
+    this.options.language = code;
+    this.options.messages = { ...this.options.messages, ...messages };
+  }
+
+  setMessages(messages: Record<string, string>): void {
+    this.options.messages = { ...this.options.messages, ...messages };
+  }
+
+  setFieldMessages(fieldMessages: Record<string, string>): void {
+    this.options.messages = { ...this.options.messages, ...fieldMessages };
+  }
+
+  static extend(name: string, rule: CustomRuleDefinition): void {
+    RuleRegistry.registerCustomRule(name, rule);
+  }
+
+  static configure(config: Partial<GlobalConfig>): void {
+    GlobalConfigModule.GlobalConfig.configure(config);
+  }
+
+  static usePreset(preset: string): void {
+    GlobalConfigModule.GlobalConfig.usePreset(preset);
+  }
+
+  static createPreset(name: string, config: Partial<GlobalConfig>): void {
+    GlobalConfigModule.GlobalConfig.createPreset(name, config);
   }
 }
-
-export { ValidationResult } from "../types/interfaces.js";

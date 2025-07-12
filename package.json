@@ -1,46 +1,161 @@
 {
   "name": "validlyjs",
-  "version": "1.0.3",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "module": "dist/index.js",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "version": "2.0.0",
+  "sideEffects": false,
+  "description": "A high-performance Laravel-inspired validation library for TypeScript/JavaScript",
   "keywords": [
     "validation",
-    "javascript",
-    "typescript",
     "laravel",
-    "client",
-    "validation-rules"
+    "typescript",
+    "schema",
+    "forms",
+    "fluent",
+    "vue",
+    "react",
+    "nodejs",
+    "performance",
+    "express",
+    "fastify"
   ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/esm/integrations/react/index.js",
+      "types": "./dist/integrations/react/index.d.ts"
+    },
+    "./vue": {
+      "import": "./dist/esm/integrations/vue/index.js",
+      "types": "./dist/integrations/vue/index.d.ts"
+    },
+    "./node": {
+      "import": "./dist/esm/integrations/node/index.js",
+      "require": "./dist/cjs/integrations/node/index.js",
+      "types": "./dist/integrations/node/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/esm",
+    "dist/cjs",
+    "dist/index.d.ts",
+    "dist/integrations/react/index.d.ts",
+    "dist/integrations/vue/index.d.ts",
+    "dist/integrations/node/index.d.ts",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run clean && npm run build:types && npm run build:rollup",
+    "build:prod": "cross-env NODE_ENV=production npm run clean && npm run build:types && npm run build:rollup:prod && npm run clean:temp",
+    "build:dev": "cross-env NODE_ENV=development npm run clean && npm run build:types && npm run build:rollup",
+    "build:types": "tsc -p tsconfig.build.json",
+    "clean:temp": "rimraf dist/temp_types",
+    "clean:analysis": "rimraf dist/analysis",
+    "build:rollup": "rollup -c rollup.config.js",
+    "build:watch": "rollup -c rollup.config.js --watch",
+    "build:rollup:prod": "rollup -c rollup.config.prod.js",
+    "build:watch:prod": "rollup -c rollup.config.prod.js --watch",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --coverage --ci --watchAll=false",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "npm run build:prod && npm run test:ci",
+    "release": "semantic-release",
+    "docs": "typedoc src/index.ts",
+    "benchmark": "node benchmarks/index.js",
+    "analyze": "cross-env NODE_ENV=development npm run build:dev && npm run clean:analysis",
+    "test:integrations": "jest src/__tests__/integrations",
+    "test:react": "jest src/__tests__/integrations/react.test.tsx",
+    "test:vue": "jest src/__tests__/integrations/vue.test.ts",
+    "test:express": "jest src/__tests__/integrations/express.test.ts",
+    "test:fastify": "jest src/__tests__/integrations/fastify.test.ts",
+    "test:browser": "jest src/__tests__/integrations/browser.test.ts"
+  },
   "author": "Adelabu Tobi",
+  "license": "MIT",
+  "devDependencies": {
+    "@jest/globals": "^30.0.3",
+    "@rollup/plugin-alias": "^5.1.1",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/express": "^5.0.3",
+    "@types/jest": "^29.5.14",
+    "@types/joi": "^17.2.2",
+    "@types/node": "^20.9.0",
+    "@types/react": "^19.1.8",
+    "@types/supertest": "^6.0.3",
+    "@vue/server-renderer": "^3.5.17",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/vue3-jest": "^29.2.6",
+    "cross-env": "^7.0.3",
+    "express": "^5.1.0",
+    "fastify": "^5.4.0",
+    "fastify-plugin": "^5.0.1",
+    "file-type": "^16.5.4",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "rimraf": "^5.0.5",
+    "rollup": "^4.5.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "rollup-plugin-visualizer": "^6.0.3",
+    "semantic-release": "^22.0.8",
+    "supertest": "^7.1.1",
+    "ts-jest": "^29.4.0",
+    "tslib": "^2.6.2",
+    "typedoc": "^0.25.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0",
+    "vue": "^3.5.17"
+  },
+  "peerDependencies": {
+    "fastify-plugin": "^5.0.1",
+    "react": "^19.1.0",
+    "vue": "^3.5.17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "fastify-plugin": {
+      "optional": true
+    },
+    "file-type": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/tobyemmanuel/validlyjs.git"
   },
-  "license": "MIT",
-  "description": "ValidlyJS is a lightweight, type-safe validation library inspired by Laravel's validation syntax",
-  "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
-    "vue": "^2.0.0 || ^3.0.0"
+  "bugs": {
+    "url": "https://github.com/tobyemmanuel/validlyjs/issues"
   },
-  "devDependencies": {
-    "@types/node": "^22.10.10",
-    "@types/react": "^19.0.8",
-    "@types/react-dom": "^19.0.3",
-    "@types/vue": "^1.0.31",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tslib": "^2.8.1",
-    "typescript": "^5.7.3",
-    "vue": "^3.5.13"
-  }
+  "homepage": "https://github.com/tobyemmanuel/validlyjs#readme"
 }

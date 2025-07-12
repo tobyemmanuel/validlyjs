@@ -1,6 +1,6 @@
 {
   "name": "validlyjs",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "sideEffects": false,
   "description": "A high-performance Laravel-inspired validation library for TypeScript/JavaScript",
   "keywords": [

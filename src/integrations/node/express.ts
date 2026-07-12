@@ -10,6 +10,9 @@ export interface ExpressValidationOptions extends ValidatorOptions {
 
 export class ExpressValidator {
   private options: ExpressValidationOptions;
+  // Reuse one compiled Validator per schema object to avoid recompiling regexes and
+  // allocating fresh caches on every request (GC churn under load).
+  private validatorCache = new WeakMap<Record<string, RuleDefinition>, Validator>();
 
   constructor(options: ExpressValidationOptions = {}) {
     this.options = {
@@ -18,6 +21,19 @@ export class ExpressValidator {
       errorFormat: 'laravel',
       ...options,
     };
+  }
+
+  private getValidator(
+    rules: Record<string, RuleDefinition>,
+    options?: Partial<ExpressValidationOptions>
+  ): Validator {
+    const mergedOptions = { ...this.options, ...options };
+    let validator = this.validatorCache.get(rules);
+    if (!validator) {
+      validator = new Validator(rules, mergedOptions);
+      this.validatorCache.set(rules, validator);
+    }
+    return validator;
   }
 
   validate(
@@ -44,7 +60,7 @@ export class ExpressValidator {
           Object.assign(data, req.headers);
         }
 
-        const validator = new Validator(rules, mergedOptions);
+        const validator = this.getValidator(rules, options);
         const result = await validator.validate(data);
         if (result.isValid) {
           // Attach validated data to request

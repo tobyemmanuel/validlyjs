@@ -16,6 +16,9 @@ export interface FastifyValidationOptions extends ValidatorOptions {
 
 export class FastifyValidator {
   private options: FastifyValidationOptions;
+  // Reuse one compiled Validator per schema object to avoid recompiling regexes and
+  // allocating fresh caches on every request (GC churn under load).
+  private validatorCache = new WeakMap<Record<string, RuleDefinition>, Validator>();
 
   constructor(options: FastifyValidationOptions = {}) {
     this.options = {
@@ -24,6 +27,19 @@ export class FastifyValidator {
       errorFormat: 'laravel',
       ...options,
     };
+  }
+
+  private getValidator(
+    rules: Record<string, RuleDefinition>,
+    options?: Partial<FastifyValidationOptions>
+  ): Validator {
+    const mergedOptions = { ...this.options, ...options };
+    let validator = this.validatorCache.get(rules);
+    if (!validator) {
+      validator = new Validator(rules, mergedOptions);
+      this.validatorCache.set(rules, validator);
+    }
+    return validator;
   }
 
   validate(
@@ -50,7 +66,7 @@ export class FastifyValidator {
           Object.assign(data, request.headers);
         }
 
-        const validator = new Validator(rules, mergedOptions);
+        const validator = this.getValidator(rules, options);
         const result = await validator.validate(data);
 
         if (result.isValid) {

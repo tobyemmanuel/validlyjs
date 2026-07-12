@@ -43,9 +43,17 @@ export class RuleEngine {
     parameters: any[],
     context: ValidationContext
   ): Promise<RuleResult> {
-    const cacheKey = `${ruleName}:${context.field}:${JSON.stringify(parameters)}:${JSON.stringify(value)}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached) return cached;
+    // Cache only by rule + field + parameters. Object/array values are not safe to key on
+    // (serializing them retains large payloads in the cache and is slow), so we skip caching
+    // for them entirely.
+    const cacheable = value === null || typeof value !== 'object';
+    const cacheKey = cacheable
+      ? `${ruleName}:${context.field}:${JSON.stringify(parameters)}`
+      : null;
+    if (cacheKey) {
+      const cached = this.cache.get(cacheKey);
+      if (cached) return cached;
+    }
 
     const rule = this.getRule(ruleName);
     if (!rule) {
@@ -72,7 +80,7 @@ export class RuleEngine {
         ...((!result && rule.message) && { message: rule.message }) // Only add message when needed
       };
 
-      this.cache.set(cacheKey, ruleResult);
+      if (cacheKey) this.cache.set(cacheKey, ruleResult);
       return ruleResult;
     } catch (error) {
       const ruleResult: RuleResult = {
@@ -80,7 +88,7 @@ export class RuleEngine {
         message: `Rule "${ruleName}" execution failed: ${(error as Error).message}`,
         skip: false,
       };
-      this.cache.set(cacheKey, ruleResult);
+      if (cacheKey) this.cache.set(cacheKey, ruleResult);
       return ruleResult;
     }
   }

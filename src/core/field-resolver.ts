@@ -3,9 +3,12 @@ import { ValidationSchema, RuleDefinition } from '../types';
 export class FieldResolver {
   // Cache for compiled path segments and array index regex
   private readonly pathSegmentCache = new Map<string, string[]>();
+  private static readonly PATH_SEGMENT_CACHE_MAX = 500;
   private readonly arrayIndexRegex = /^([^\[]+)\[(\d+)\]$/;
   private readonly pathEndArrayRegex = /\[(\d+)\]$/;
   private readonly optionalRuleCache = new Map<RuleDefinition, boolean>();
+  // Keys that must never be read/written through normal property access (prototype pollution).
+  private static readonly UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
   resolveFields(schema: ValidationSchema, data: Record<string, any>): Map<string, any> {
     const fields = new Map<string, any>();
@@ -132,6 +135,7 @@ export class FieldResolver {
       const keys = Object.keys(parentValue);
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
+        if (key === undefined || FieldResolver.UNSAFE_KEYS.has(key)) continue;
         const resolvedPath = suffix ? `${prefix}.${key}.${suffix}` : `${prefix}.${key}`;
         const value = this.resolvePath(data, resolvedPath);
         fields.set(resolvedPath, value);
@@ -147,6 +151,10 @@ export class FieldResolver {
     }
 
     const segments = path.split('.');
+    if (this.pathSegmentCache.size >= FieldResolver.PATH_SEGMENT_CACHE_MAX) {
+      const oldest = this.pathSegmentCache.keys().next().value;
+      if (oldest !== undefined) this.pathSegmentCache.delete(oldest);
+    }
     this.pathSegmentCache.set(path, segments);
     return segments;
   }
@@ -160,6 +168,8 @@ export class FieldResolver {
         if (current === undefined) return undefined;
         
         const key = segments[i] as string;
+        // Never traverse into prototype-polluting keys.
+        if (FieldResolver.UNSAFE_KEYS.has(key)) return undefined;
         const match = this.arrayIndexRegex.exec(key);
         
         if (match) {

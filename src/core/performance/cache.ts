@@ -22,28 +22,32 @@ export class CacheStats {
 export class ValidationCache {
   private cache = new Map<string, RuleResult>();
   private maxSize = 1000;
-  private accessOrder: string[] = [];
   public stats = new CacheStats();
   
   set(key: string, result: RuleResult): void {
+    if (this.cache.has(key)) {
+      // Move to most-recent (Map preserves insertion order).
+      this.cache.delete(key);
+      this.cache.set(key, result);
+      return;
+    }
     if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.accessOrder.shift();
-      if (oldestKey) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey !== undefined) {
         this.cache.delete(oldestKey);
         this.stats.evictions++;
       }
     }
     this.cache.set(key, result);
-    this.accessOrder.push(key);
   }
 
   get(key: string): RuleResult | undefined {
     const result = this.cache.get(key);
     if (result) {
       this.stats.hits++;
-      const index = this.accessOrder.indexOf(key);
-      this.accessOrder.splice(index, 1);
-      this.accessOrder.push(key);
+      // Refresh recency (LRU).
+      this.cache.delete(key);
+      this.cache.set(key, result);
     } else {
       this.stats.misses++;
     }
@@ -52,7 +56,6 @@ export class ValidationCache {
   
   clear(): void {
     this.cache.clear();
-    this.accessOrder = [];
   }
 
   generateKey(rule: RuleDefinition): string {
@@ -71,30 +74,31 @@ export class ValidationCache {
 export class CompiledRuleCache {
   private cache = new Map<string, CompiledRule[]>();
   private maxSize = 1000;
-  private accessOrder: string[] = [];
 
   set(key: string, rules: CompiledRule[]): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+      this.cache.set(key, rules);
+      return;
+    }
     if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.accessOrder.shift();
-      if (oldestKey) this.cache.delete(oldestKey);
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey !== undefined) this.cache.delete(oldestKey);
     }
     this.cache.set(key, rules);
-    this.accessOrder.push(key);
   }
 
   get(key: string): CompiledRule[] | undefined {
     const rules = this.cache.get(key);
     if (rules) {
-      const index = this.accessOrder.indexOf(key);
-      this.accessOrder.splice(index, 1);
-      this.accessOrder.push(key);
+      this.cache.delete(key);
+      this.cache.set(key, rules);
     }
     return rules;
   }
 
   clear(): void {
     this.cache.clear();
-    this.accessOrder = [];
   }
 
   generateKey(rule: RuleDefinition): string {

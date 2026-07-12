@@ -5,9 +5,6 @@ import { RuleEngine } from '../../core/rule-engine';
 // Reusable RuleEngine instance to avoid repeated instantiation
 let sharedRuleEngine: RuleEngine | null = null;
 
-// Cache for property validation results
-const propertyValidationCache = new Map<string, boolean>();
-
 // Pre-compiled type checkers
 const isValidObject = (value: any): value is Record<string, any> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -51,18 +48,6 @@ export const objectShapeRule: Rule = {
     
     for (let i = 0; i < shapeEntries.length; i++) {
       const [propertyName, propertyRules] = shapeEntries[i] as [string, any];
-      
-      // Create cache key for this validation
-      const cacheKey = `${field}.${propertyName}:${JSON.stringify(propertyRules)}:${JSON.stringify(value[propertyName])}`;
-      
-      // Check cache first
-      if (propertyValidationCache.has(cacheKey)) {
-        const cachedResult = propertyValidationCache.get(cacheKey)!;
-        if (!cachedResult) {
-          return false; // Early exit on cached failure
-        }
-        continue;
-      }
 
       // Prepare validation
       const propertyValue = value[propertyName];
@@ -77,12 +62,11 @@ export const objectShapeRule: Rule = {
       
       // Add to validation batch
       validationPromises.push(
-        validatePropertyWithCaching(
+        validateProperty(
           sharedRuleEngine,
           propertyValue,
           ruleDefinition,
-          propertyContext,
-          cacheKey
+          propertyContext
         )
       );
     }
@@ -116,30 +100,19 @@ function normalizeRuleDefinition(propertyRules: any): RuleDefinition {
 }
 
 /**
- * Optimized property validation with caching
+ * Optimized property validation (no value-keyed caching, which previously retained
+ * JSON-serialized payloads and could return stale results).
  */
-async function validatePropertyWithCaching(
+async function validateProperty(
   ruleEngine: RuleEngine,
   propertyValue: any,
   ruleDefinition: RuleDefinition,
-  propertyContext: ValidationContext,
-  cacheKey: string
+  propertyContext: ValidationContext
 ): Promise<boolean> {
   try {
     const result = await ruleEngine.validateValue(propertyValue, ruleDefinition, propertyContext);
-    const passed = result.passed;
-    
-    // Cache the result with size limit
-    if (propertyValidationCache.size < 1000) { // Prevent memory bloat
-      propertyValidationCache.set(cacheKey, passed);
-    }
-    
-    return passed;
+    return result.passed;
   } catch (error) {
-    // Cache failures too
-    if (propertyValidationCache.size < 1000) {
-      propertyValidationCache.set(cacheKey, false);
-    }
     return false;
   }
 }
@@ -162,13 +135,13 @@ export const objectHasRule: Rule = {
       return false;
     }
     
-    // Use 'in' operator for better performance than hasOwnProperty
-    return propertyName in value;
+    // Only consider own (non-inherited) properties to avoid prototype pollution.
+    return Object.prototype.hasOwnProperty.call(value, propertyName);
   },
   message: 'The {field} must have the property {0}.'
 };
 
-// Utility function to clear cache when needed (export for external use)
+// Utility function retained for API compatibility (previously cleared a value-keyed cache).
 export function clearObjectValidationCache(): void {
-  propertyValidationCache.clear();
+  // No-op: results are no longer cached by value.
 }

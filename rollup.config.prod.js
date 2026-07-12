@@ -15,7 +15,6 @@ const baseConfig = {
   external: [
     'react',
     'vue',
-    'file-type',
     'fastify-plugin',
     'express',
     'validlyjs',

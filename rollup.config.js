@@ -3,14 +3,34 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
+import alias from '@rollup/plugin-alias';
+import path from 'path';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { fileURLToPath } from 'url';
 
 const isProduction = false;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Base configuration
 const baseConfig = {
-  external: ['react', 'vue', 'file-type', 'fastify-plugin', 'express'],
+  external: ['react', 'vue', 'fastify-plugin', 'express'],
   plugins: [
+    alias({
+      entries: [
+        { find: 'validlyjs', replacement: path.resolve(__dirname, 'src/index.ts') },
+        { find: '@', replacement: path.resolve(__dirname, 'src') },
+        { find: '@/types', replacement: path.resolve(__dirname, 'src/types') },
+        { find: '@/core', replacement: path.resolve(__dirname, 'src/core') },
+        { find: '@/parsers', replacement: path.resolve(__dirname, 'src/parsers') },
+        { find: '@/rules', replacement: path.resolve(__dirname, 'src/rules') },
+        { find: '@/fluent', replacement: path.resolve(__dirname, 'src/fluent') },
+        { find: '@/messages', replacement: path.resolve(__dirname, 'src/messages') },
+        { find: '@/response', replacement: path.resolve(__dirname, 'src/response') },
+        { find: '@/config', replacement: path.resolve(__dirname, 'src/config') },
+        { find: '@/utils', replacement: path.resolve(__dirname, 'src/utils') },
+        { find: '@/integrations', replacement: path.resolve(__dirname, 'src/integrations') },
+      ],
+    }),
     resolve({
       browser: false,
       preferBuiltins: true,

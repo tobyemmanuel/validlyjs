@@ -9,18 +9,18 @@ A high-performance Laravel-inspired validation library for TypeScript/JavaScript
   [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg)](http://www.typescriptlang.org/)
   [![Build Status](https://github.com/tobyemmanuel/validlyjs/workflows/CI/badge.svg)](https://github.com/tobyemmanuel/validlyjs/actions)
 
-## ✨ Features
+## Features
 
-- **🚀 Laravel-Style Validation**: Define rules using a fluent API or Laravel-style strings
-- **🔒 Type-Safe**: Built with TypeScript for robust type checking and inference
-- **🌐 Frontend-Focused**: Designed for browser environments with support for file validation
-- **🎨 Customizable**: Add custom rules, error messages, and localization
-- **⚡ Framework-Agnostic**: Works with vanilla JavaScript, React, Vue, Node.js, and more
-- **🔄 Async Support**: Validate data asynchronously for complex use cases
-- **📱 Cross-Platform**: Browser, Node.js, and mobile app support
-- **🎯 High Performance**: Optimized for speed with minimal bundle size
+- **Laravel-Style Validation**: Define rules using a fluent API or Laravel-style strings
+- **Type-Safe**: Built with TypeScript for robust type checking and inference
+- **Frontend-Focused**: Designed for browser environments with support for file validation
+- **Customizable**: Add custom rules, error messages, and localization
+- **Framework-Agnostic**: Works with vanilla JavaScript, React, Vue, Node.js, and more
+- **Async Support**: Validate data asynchronously for complex use cases
+- **Cross-Platform**: Browser, Node.js, and mobile app support
+- **High Performance**: Optimized for speed with minimal bundle size
 
-## 📦 Installation
+## Installation
 
 Install ValidlyJS via npm:
 
@@ -34,7 +34,7 @@ Or via yarn:
 yarn add validlyjs
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Validation
 
@@ -90,7 +90,7 @@ const validator = new Validator({
 });
 ```
 
-## 📚 Validation Types
+## Validation Types
 
 ### String Validation
 
@@ -104,16 +104,16 @@ const schema = {
     .max(20)
     .alpha()
     .lowercase(),
-  
+
   email: string()
     .required()
     .email()
     .max(255),
-    
+
   url: string()
     .url()
     .nullable(),
-    
+
   phone: string()
     .regex(/^\+?[1-9]\d{1,14}$/)
 };
@@ -130,12 +130,12 @@ const schema = {
     .min(18)
     .max(120)
     .integer(),
-    
+
   price: number()
     .required()
     .min(0)
     .decimal(2),
-    
+
   rating: number()
     .between(1, 5)
 };
@@ -152,7 +152,7 @@ const schema = {
     .min(1)
     .max(5)
     .unique(),
-    
+
   user: object()
     .required()
     .shape({
@@ -176,7 +176,7 @@ const schema = {
     .required()
     .before('today')
     .after('1900-01-01'),
-    
+
   appointmentDate: date()
     .required()
     .after('today')
@@ -195,14 +195,14 @@ const schema = {
     .maxSize('2MB')
     .mimes(['jpg', 'png', 'gif'])
     .dimensions('min_width=100,min_height=100'),
-    
+
   document: file()
     .mimes(['pdf', 'doc', 'docx'])
     .maxSize('10MB')
 };
 ```
 
-## 🔄 Async Validation
+## Async Validation
 
 ```typescript
 const validator = new Validator({
@@ -213,7 +213,7 @@ const validator = new Validator({
       const isAvailable = await checkUsernameAvailability(value);
       return isAvailable ? true : "Username is already taken";
     }),
-    
+
   email: string()
     .required()
     .email()
@@ -229,22 +229,22 @@ const result = await validator.validateAsync({
 });
 ```
 
-## 🎯 Conditional Validation
+## Conditional Validation
 
 ```typescript
 const validator = new Validator({
   // Required if another field has a specific value
   phone: string().requiredIf('contact_method', 'phone'),
-  
+
   // Required unless another field has a specific value
   email: string().requiredUnless('contact_method', 'phone'),
-  
+
   // Required with other fields
   city: string().requiredWith(['state', 'country']),
-  
+
   // Prohibited if another field has a specific value
   discount: number().prohibitedIf('user_type', 'premium'),
-  
+
   // Conditional validation with when()
   items: array().required().min(1),
   'items.*': string().when('items', {
@@ -255,7 +255,7 @@ const validator = new Validator({
 });
 ```
 
-## 🎨 Framework Integration
+## Framework Integration
 
 ### React Integration
 
@@ -273,7 +273,7 @@ function UserForm() {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
-    
+
     const result = await validate(data);
     if (result.isValid) {
       // Submit form
@@ -352,7 +352,7 @@ app.post('/users', async (req, res) => {
   });
 
   const result = await validator.validate(req.body);
-  
+
   if (!result.isValid) {
     return res.status(422).json({
       message: 'Validation failed',
@@ -365,7 +365,7 @@ app.post('/users', async (req, res) => {
 });
 ```
 
-## 🛠️ Customization
+## Customization
 
 ### Custom Rules
 
@@ -421,7 +421,7 @@ configure({
 });
 ```
 
-## 📊 Performance
+## Performance
 
 ValidlyJS is optimized for performance:
 
@@ -430,7 +430,7 @@ ValidlyJS is optimized for performance:
 - **Memory efficient**: Minimal memory footprint
 - **Async-friendly**: Non-blocking validation
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -450,13 +450,11 @@ Run integration tests:
 npm run test:integrations
 ```
 
-## 📖 Documentation
+## Documentation
 
 For comprehensive documentation, examples, and API reference, visit:
 
-**[📚 ValidlyJS Documentation](https://tobyemmanuel.github.io/validlyjs)**
-
-## 🤝 Contributing
+**[ ValidlyJS Documentation](https://tobyemmanuel.github.io/validlyjs)**## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
@@ -472,22 +470,22 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 8. Push to the branch: `git push origin feature/your-feature`
 9. Open a pull request
 
-## 📝 Changelog
+## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
 
-## 📄 License
+## License
 
 ValidlyJS is open-source software licensed under the [MIT License](LICENSE).
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Inspired by [Laravel's validation system](https://laravel.com/docs/validation)
-- Built with ❤️ for the JavaScript/TypeScript community
+- Built with  for the JavaScript/TypeScript community
 
-## 📞 Support
+## Support
 
-- 🐛 [Report bugs](https://github.com/tobyemmanuel/validlyjs/issues)
-- 💡 [Request features](https://github.com/tobyemmanuel/validlyjs/issues)
+-  [Report bugs](https://github.com/tobyemmanuel/validlyjs/issues)
+-  [Request features](https://github.com/tobyemmanuel/validlyjs/issues)
 
-[⭐ Star us on GitHub](https://github.com/tobyemmanuel/validlyjs) • [🌐 Visit our website](https://tobyemmanuel.github.io/validlyjs)
+[ Star us on GitHub](https://github.com/tobyemmanuel/validlyjs) • [ Visit our website](https://tobyemmanuel.github.io/validlyjs)

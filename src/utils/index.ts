@@ -1,3 +1,5 @@
 export * from './file'
 export * from './date'
 export * from './boolean'
+export * from './mime'
+export * from './safe-regex'

@@ -1,15 +1,22 @@
-import { Rule } from '../../../types';
+﻿import { Rule } from '../../../types';
 import fs from 'fs/promises';
+import { resolveWithinBaseDir } from './security';
 
 /**
- * File existence validation
+ * File existence validation.
+ *
+ * NOTE: this performs a real filesystem lookup on the caller-supplied path. Set a base
+ * directory via `setFileBaseDir()` (or pass it as the last rule parameter) to prevent
+ * path-traversal / arbitrary filesystem probing.
  */
 export const fileExistsRule: Rule = {
   name: 'file.exists',
-  validate: async (value: any): Promise<boolean> => {
-    if (typeof value !== 'string') return false;
+  validate: async (value: any, parameters: any[]): Promise<boolean> => {
+    const target = resolveWithinBaseDir(value) ??
+      (typeof value === 'string' ? value : null);
+    if (target === null) return false;
     try {
-      await fs.access(value);
+      await fs.access(target);
       return true;
     } catch {
       return false;

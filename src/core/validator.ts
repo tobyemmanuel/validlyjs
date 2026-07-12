@@ -22,7 +22,7 @@ import { ResponseFormatter, ResponseFormatterFactory } from '../response';
 import { CompiledRuleCache, RuleCompiler } from './performance';
 import { RuleRegistry } from './rule-registry';
 import * as GlobalConfigModule from '../config';
-import { parseDateString, toBoolean } from '@/utils';
+import { parseDateString, toBoolean, analyzePattern } from '@/utils';
 
 export class Validator {
   private schema: ValidationSchema;
@@ -435,7 +435,15 @@ export class Validator {
   }
 
   private createWildcardRegex(pattern: string): RegExp {
-    let regexPattern = pattern;
+    // Defensive guard: schema keys are developer-controlled, but still cap length
+    // and reject obviously dangerous patterns before compiling.
+    const trimmed = pattern.slice(0, 1000);
+    const analysis = analyzePattern(trimmed.replace(/\.\*/g, '(.*)').replace(/\[(\d+)\]/g, 'x'));
+    if (!analysis.safe) {
+      // Fall back to a pattern that matches nothing rather than running an unsafe one.
+      return /$^/;
+    }
+    let regexPattern = trimmed;
     regexPattern = regexPattern.replace(/[+?^${}()|[\]\\]/g, '\\$&');
     regexPattern = regexPattern.replace(/\.\*/g, '\\[\\d+\\]');
     regexPattern = regexPattern.replace(/\./g, '\\.');

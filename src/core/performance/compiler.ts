@@ -1,9 +1,10 @@
 import { CompiledRule, ValidationContext, ParsedRule } from '../../types';
 import { RuleEngine } from '../rule-engine';
-import { parseDateString } from '@/utils';
+import { parseDateString, analyzePattern } from '@/utils';
 
 export class RuleCompiler {
   private compiledRuleCache = new Map<string, CompiledRule>();
+  private static readonly COMPILED_RULE_CACHE_MAX = 1000;
   private ruleEngine: RuleEngine;
   private options: { optimizeUnions: boolean; parallelValidation: boolean };
 
@@ -50,11 +51,15 @@ export class RuleCompiler {
       const cacheKey = this.getCacheKey(rule);
       let compiledRule = this.compiledRuleCache.get(cacheKey);
       
-      if (!compiledRule) {
+       if (!compiledRule) {
         compiledRule = rule.name === 'union' 
           ? this.compileUnion(rule)
           : this.compileRule(rule);
         
+        if (this.compiledRuleCache.size >= RuleCompiler.COMPILED_RULE_CACHE_MAX) {
+          const oldest = this.compiledRuleCache.keys().next().value;
+          if (oldest !== undefined) this.compiledRuleCache.delete(oldest);
+        }
         this.compiledRuleCache.set(cacheKey, compiledRule);
       }
       
@@ -134,11 +139,23 @@ export class RuleCompiler {
   }
 
   private compileStringRegex(rule: ParsedRule): CompiledRule {
-    const pattern = new RegExp(rule.parameters[0]);
+    const pattern = rule.parameters[0] as string;
+    const flags = (rule.parameters[1] as string) || '';
+    const analysis = analyzePattern(pattern, flags);
+    if (!analysis.safe) {
+      // Fail closed: an unsafe regex pattern must never run.
+      return {
+        name: rule.name,
+        validator: () => ({ passed: false, message: `Unsafe regex pattern rejected (${analysis.reason})` }),
+        async: false,
+        parameters: rule.parameters,
+      };
+    }
+    const regex = new RegExp(pattern, flags);
     return {
       name: rule.name,
       validator: (value: any) => ({
-        passed: typeof value === 'string' && pattern.test(value)
+        passed: typeof value === 'string' && regex.test(value)
       }),
       async: false,
       parameters: rule.parameters,

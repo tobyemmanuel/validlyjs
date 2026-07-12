@@ -1,4 +1,5 @@
 import { Rule } from '../../types/rules';
+import { safeRegexTest } from '../../utils/safe-regex';
 // Pre-compiled regexes for maximum performance
 const alphaRegex = /^[a-zA-Z]+$/;
 const alphaNumericRegex = /^[a-zA-Z0-9]+$/;
@@ -16,14 +17,8 @@ export const regexRule: Rule = {
     const pattern = parameters[0];
     if (!pattern) return false;
 
-    try {
-      // Cache regex if same pattern is used repeatedly
-      const flags = parameters[1];
-      const regex = new RegExp(pattern, flags);
-      return regex.test(value);
-    } catch {
-      return false;
-    }
+    const flags = parameters[1];
+    return safeRegexTest(pattern, flags, value);
   },
   message: 'The {field} format is invalid.',
   priority: 2,

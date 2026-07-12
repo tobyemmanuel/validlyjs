@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-07-12
+
+### 🚀 Major Changes
+
+- **BREAKING**: File type detection is now **content-based** (magic-byte sniffing) instead of relying on the `file-type` package. `file.mimes()` and `file.image()` now inspect the actual file bytes.
+- **BREAKING**: The `file-type` dependency has been **removed entirely** (it was an optional peer dependency). File validation no longer requires it.
+- **BREAKING**: `string().regex()` / `pattern` rules are now guarded against catastrophic backtracking (ReDoS); overly complex patterns are handled safely instead of executed blindly.
+
+### ✨ New Features (Security)
+
+- **NEW**: Built-in magic-byte MIME sniffer (`src/utils/mime.ts`) — zero external dependencies for file type detection.
+- **NEW**: ReDoS protection via a bounded regex LRU cache plus a fail-closed `safeRegexTest` (`src/utils/safe-regex.ts`).
+- **NEW**: Prototype-pollution guards in object `shape` resolution and the field resolver — `__proto__` / `constructor.prototype` are excluded from path traversal.
+- **NEW**: Node file rules (`content-type`, `exists`, `path`, `permissions`) now resolve paths within a configurable base directory (path-traversal protection).
+
+### 🔧 Improvements (Performance & Memory)
+
+- **IMPROVED**: O(1) LRU rule-compilation cache; cache keys now skip object/array values to avoid redundant work.
+- **IMPROVED**: Bounded path-segment cache.
+- **IMPROVED**: Per-`Validator` memoization in the Express and Fastify integrations (`WeakMap`) — rules are no longer recompiled on every request.
+- **IMPROVED**: `npm audit` on **production** dependencies reports **0 vulnerabilities**.
+
+### 🔄 Migration Guide
+
+#### **From v2.0 to v3.0**
+
+##### **File Validation (Behavior Change)**
+
+```javascript
+// v2.0 - relied on the `file-type` package / extension heuristics
+import { file } from 'validlyjs';
+const schema = { avatar: file().mimes(['jpg', 'png']) };
+
+// v3.0 - same API, but detection is now content-based (magic bytes)
+// No `file-type` install required; mismatched extension vs. content is caught.
+const schema = { avatar: file().mimes(['jpg', 'png']) };
+```
+
+##### **Custom Regex (Safety Change)**
+
+```javascript
+// v3.0 - patterns are analyzed for catastrophic backtracking and
+// rejected/handled safely instead of risking a ReDoS.
+string().regex(/^(a+)+$/); // complex patterns are now guarded
+```
+
+### 📦 Dependencies
+
+#### **Removed**
+
+- `file-type` (previously an optional peer dependency).
+
+#### **Updated (Dev Tooling)**
+
+- `semantic-release` **15 → 24** — eliminates the ~500-package vulnerable `npm`/`libnpm*`/`pacote` tree that v15 dragged in.
+
+### 📚 Documentation
+
+- **NEW**: Benchmark suite — `npm run benchmark`, plus cross-library (Zod/Joi) and rule-mode (string/array/fluent) comparisons.
+- **NEW**: Security and performance benchmark test suites.
+
+### 🐛 Bug Fixes
+
+- Hardened file-validation edge cases (extension/content mismatches) via content sniffing.
+- Fixed module case-sensitivity resolution (`Validator.ts` → `validator.ts`).
+
+### 🧪 Testing
+
+- **NEW**: Security test suite (12 tests) and per-data-type performance benchmark suite (14 tests).
+- Full test suite: **403 tests passing**.
+
+### 🎯 Key Benefits of v3.0
+
+1. **Secure by Default**: Content-based file detection, ReDoS-safe regex, and prototype-pollution guards.
+2. **Smaller Install**: `file-type` dependency removed.
+3. **Auditable**: Zero vulnerabilities in production dependencies.
+4. **Faster**: Memoized rule compilation in Node integrations and an O(1) compilation cache.
+
+### 🔮 What's Next
+
+- Continued benchmarking and tuning against Zod/Joi.
+- Additional framework integrations and interactive docs examples.
+
 ## [2.0.0] - 2024-01-XX
 
 ### 🚀 Major Changes

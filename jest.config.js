@@ -37,6 +37,7 @@ module.exports = {
 
   // Module resolution
   moduleNameMapper: {
+    '^validlyjs$': '<rootDir>/src/index.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@/types/(.*)$': '<rootDir>/src/types/$1',
     '^@/core/(.*)$': '<rootDir>/src/core/$1',
